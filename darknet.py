@@ -3,6 +3,7 @@ from __future__ import division
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import cv2
 from torch.autograd import Variable
 import numpy as np
 from util import predict_transform
@@ -10,6 +11,7 @@ from util import predict_transform
 from module_creation_constant import *
 
 def get_test_input():
+
     img = cv2.imread("dog-cycle-car.png")
 
     # Resize input dimension
@@ -45,8 +47,35 @@ class Darknet(nn.Module):
         super(Darknet, self).__init__()
         self.blocks = parse_cfg(config_file)
         self.net_info, self.module_list = create_modules(self.blocks)
+        self.header = None
+        self.seen = None
+
+    def load_weights(self, weight_file):
+        # Open the file
+        with open(weight_file) as file:
+            """
+            First 5 values are header information
+            1. Major revision number
+            2. Minor revision number
+            3. Subversion number
+            4, 5. Images seen by the network (during training
+            """
+            header = np.fromfile(file, dtype=np.int32, count=5)
+            self.header = torch.from_numpy(header)
+            self.seen = self.header[3]
+
+            weights = np.fromfile(file, dtype=np.float32)
+
+            pointer = 0
+            for index in range(len(self.module_list)):
+                module_type = self.block[index+1][TYPE]
+
+                # If module_type is convolutional, load the weights
+                # Otherwise, ignore.
+                # TODO: Continue here - 4/5 of the way through the web-page
 
     def forward(self, layer_input, CUDA):
+        print("Forward called")
         # Start from index 1, as 0 contains the 'net' block
         modules = self.blocks[1:]
         outputs = {}

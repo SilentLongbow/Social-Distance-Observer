@@ -17,18 +17,21 @@ def predict_transform(prediction, input_dimensions, anchors, num_classes, CUDA=T
     bounding_box_attributes = 5 + num_classes
     num_anchors = len(anchors)
 
+    if CUDA:
+        prediction = prediction.cuda()
+
     prediction = prediction.view(batch_size, bounding_box_attributes*num_anchors, grid_size*grid_size)
     prediction = prediction.transpose(1, 2).contiguous()
-    prediction = prediction.view(batch_size, grid_size*grid_size*num_anchors, bounding_box_attributes)
+    prediction = prediction.view(batch_size, grid_size * grid_size * num_anchors, bounding_box_attributes)
 
     anchors = [(anchor[0] / stride, anchor[1] / stride) for anchor in anchors]
 
     # Transform output according to sigmoid function
 
     # Sigmoid the centre_X, centre_Y and object confidence
-    prediction[:,:,0] = torch.sigmoid(prediction[:,:,0])
-    prediction[:,:,1] = torch.sigmoid(prediction[:,:,1])
-    prediction[:,:,4] = torch.sigmoid(prediction[:,:,4])
+    prediction[:, :, 0] = torch.sigmoid(prediction[:, :, 0])
+    prediction[:, :, 1] = torch.sigmoid(prediction[:, :, 1])
+    prediction[:, :, 4] = torch.sigmoid(prediction[:, :, 4])
 
     # Add grid offsets to the centre coordinates prediction
     grid = np.arange(grid_size)
@@ -49,9 +52,9 @@ def predict_transform(prediction, input_dimensions, anchors, num_classes, CUDA=T
     anchors = torch.FloatTensor(anchors)
 
     if CUDA:
-        anchors.cuda()
+        anchors = anchors.cuda()
 
-    anchors = anchors.repeat(grid_size*grid_size, 1).unsqueeze()
+    anchors = anchors.repeat(grid_size*grid_size, 1).unsqueeze(0)
     prediction[:,:,2:4] = torch.exp(prediction[:,:,2:4])*anchors
 
     # Apply sigmoid activation to class scores
