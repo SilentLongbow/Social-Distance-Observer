@@ -19,3 +19,6 @@ BATCH_NORMALISE = "batch_normalize"
 LAYERS = "layers"
 MASK = "mask"
 ANCHORS = "anchors"
+
+HEIGHT = "height"
+CLASSES = "classes"

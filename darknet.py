@@ -5,8 +5,28 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 import numpy as np
+from util import predict_transform
 
 from module_creation_constant import *
+
+def get_test_input():
+    img = cv2.imread("dog-cycle-car.png")
+
+    # Resize input dimension
+    img = cv2.resize(img, (416,416))
+
+    # BGR -> RGB | H X W C -> C X H X W
+    img_ = img[:,:,::-1].transpose((2,0,1))
+
+    # Add a channel at 0 (for the batch) | Normalise
+    img_ = img_[np.newaxis,:,:,:]/255.0
+
+    # Convert to float
+    img_ = torch.from_numpy(img_).float()
+
+    # Convert to Variable type
+    img_ = Variable(img_)
+    return img_
 
 
 class EmptyLayer(nn.Module):
@@ -26,16 +46,17 @@ class Darknet(nn.Module):
         self.blocks = parse_cfg(config_file)
         self.net_info, self.module_list = create_modules(self.blocks)
 
-    def forward(self, input, CUDA):
+    def forward(self, layer_input, CUDA):
         # Start from index 1, as 0 contains the 'net' block
         modules = self.blocks[1:]
         outputs = {}
 
+        # Indicates whether the first detection tensor is available or not.
         write = 0
         for index, module in enumerate(modules):
             module_type = module[TYPE]
             if module_type == CONVOLUTIONAL or module_type == UPSAMPLE:
-                input = self.module_list[index](input)
+                layer_input = self.module_list[index](layer_input)
             elif module_type == ROUTE:
                 layers = module[LAYERS]
                 layers = [int(a) for a in layers]
@@ -44,7 +65,7 @@ class Darknet(nn.Module):
                     layers[0] = layers[0] - index
 
                 if len(layers) == 1:
-                    input = outputs[index + layers[0]]
+                    layer_input = outputs[index + layers[0]]
                 else:
                     if layers[1] > 0:
                         layers[1] = layers[1] - index
@@ -53,14 +74,31 @@ class Darknet(nn.Module):
                     map2 = outputs[index + layers[1]]
 
                     # Concatenate along depth.
-                    input = torch.cat((map1, map2), 1)
+                    layer_input = torch.cat((map1, map2), 1)
 
             elif module_type == SHORTCUT:
                 from_ = int(module["from"])
-                input = outputs[index-1] + outputs[index+from_]
+                layer_input = outputs[index-1] + outputs[index+from_]
 
+            elif module_type == YOLO:
 
+                anchors = self.module_list[index][0].anchors
+                # Get the input dimensions
+                input_dimensions = int(self.net_info[HEIGHT])
 
+                # Get the number of classes
+                num_classes = int(module[CLASSES])
+
+                # Transform
+                layer_input = layer_input.data
+                layer_input = predict_transform(layer_input, input_dimensions, anchors, num_classes, CUDA)
+                if not write:
+                    detections = layer_input
+                    write = 1
+                else:
+                    detections = torch.cat((detections, layer_input), 1)
+            outputs[index] = layer_input
+        return detections
 
 
 def parse_cfg(config_file):
@@ -201,5 +239,7 @@ def create_modules(blocks):
     return net_info, module_list
 
 
-blocks = parse_cfg("cfg/yolov3.cfg")
-print(create_modules(blocks))
+model = Darknet("cfg/yolov3.cfg")
+input_data = get_test_input()
+pred = model(input_data, torch.cuda.is_available())
+print(pred)
