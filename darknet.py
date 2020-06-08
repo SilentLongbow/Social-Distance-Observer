@@ -70,7 +70,7 @@ class Darknet(nn.Module):
             # Keeps track of where we are in the weights array
             pointer = 0
             for index in range(len(self.module_list)):
-                module_type = self.block[index+1][TYPE]
+                module_type = self.blocks[index+1][TYPE]
 
                 # If module_type is convolutional, load the weights
                 # Otherwise, ignore.
