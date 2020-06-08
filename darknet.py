@@ -10,6 +10,7 @@ from util import predict_transform
 
 from module_creation_constant import *
 
+
 def get_test_input():
 
     img = cv2.imread("dog-cycle-car.png")
@@ -66,13 +67,80 @@ class Darknet(nn.Module):
 
             weights = np.fromfile(file, dtype=np.float32)
 
+            # Keeps track of where we are in the weights array
             pointer = 0
             for index in range(len(self.module_list)):
                 module_type = self.block[index+1][TYPE]
 
                 # If module_type is convolutional, load the weights
                 # Otherwise, ignore.
-                # TODO: Continue here - 4/5 of the way through the web-page
+                if module_type == CONVOLUTIONAL:
+                    model = self.module_list[index]
+                    try:
+                        batch_normalise = int(self.blocks[index+1][BATCH_NORMALISE])
+                    except Exception as exception:
+                        batch_normalise = 0
+
+                    convolution = model[0]
+
+                    # Batch normalisations - Method of normalising the data to a range of [0, 1]
+                    if batch_normalise:
+                        """ Load the weights """
+                        batch_norm_layer = model[1]
+                        
+                        # Get the number of weights from the Batch Norm layer
+                        num_batch_norm_biases = batch_norm_layer.bias.numel()
+                        
+                        # Load the weights
+                        batch_norm_biases = torch.from_numpy(weights[pointer:pointer + num_batch_norm_biases])
+                        pointer += num_batch_norm_biases
+
+                        batch_norm_weights = torch.from_numpy(weights[pointer: pointer + num_batch_norm_biases])
+                        pointer += num_batch_norm_biases
+
+                        batch_norm_running_mean = torch.from_numpy(weights[pointer: pointer + num_batch_norm_biases])
+                        pointer += num_batch_norm_biases
+
+                        batch_norm_running_var = torch.from_numpy(weights[pointer: pointer + num_batch_norm_biases])
+                        pointer += num_batch_norm_biases
+
+                        # Cast loaded weights into dimensions of model weights.
+                        batch_norm_biases = batch_norm_biases.view_as(batch_norm_layer.bias.data)
+                        batch_norm_weights = batch_norm_weights.view_as(batch_norm_layer.weight.data)
+                        batch_norm_running_mean = batch_norm_running_mean.view_as(batch_norm_layer.running_mean)
+                        batch_norm_running_var = batch_norm_running_var.view_as(batch_norm_layer.running_var)
+
+                        # Copy the data to the model
+                        batch_norm_layer.bias.data.copy_(batch_norm_biases)
+                        batch_norm_layer.weight.data.copy_(batch_norm_weights)
+                        batch_norm_layer.running_mean.data.copy_(batch_norm_running_mean)
+                        batch_norm_layer.running_var.data.copy_(batch_norm_running_var)
+                    else:
+                        # Load the biases of the convolutional layer
+
+                        # Number of biases
+                        num_biases = convolution.bias.numel()
+
+                        # Load the weights
+                        conv_biases = torch.from_numpy(weights[pointer: pointer + num_biases])
+                        pointer += num_biases
+
+                        # Reshape the loaded weights according to the dimensions of the model weights
+                        conv_biases = conv_biases.view_as(convolution.bias.data)
+
+                        # And now copy the data back
+                        convolution.bias.data.copy_(conv_biases)
+
+                    # Now load the weights for the Convolutional layers!
+                    num_weights = convolution.weight.numel()
+
+                    # Do the same as above for the weights
+                    conv_weights = torch.from_numpy(weights[pointer: pointer + num_weights])
+                    pointer += num_weights
+
+                    conv_weights = conv_weights.view_as(convolution.weight.data)
+                    convolution.weight.data.copy_(conv_weights)
+
 
     def forward(self, layer_input, CUDA):
         print("Forward called")
@@ -269,6 +337,4 @@ def create_modules(blocks):
 
 
 model = Darknet("cfg/yolov3.cfg")
-input_data = get_test_input()
-pred = model(input_data, torch.cuda.is_available())
-print(pred)
+model.load_weights("yolov3.weights")
