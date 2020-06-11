@@ -141,7 +141,6 @@ class Darknet(nn.Module):
                     conv_weights = conv_weights.view_as(convolution.weight.data)
                     convolution.weight.data.copy_(conv_weights)
 
-
     def forward(self, layer_input, CUDA):
         print("Forward called")
         # Start from index 1, as 0 contains the 'net' block
