@@ -2,3 +2,4 @@
 *.weights
 /yolov3/data/coco/
 /deep-sort-python/det/*.txt
+/**/video_output/
