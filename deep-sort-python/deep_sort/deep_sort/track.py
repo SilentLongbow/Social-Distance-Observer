@@ -80,6 +80,11 @@ class Track:
         self._n_init = n_init
         self._max_age = max_age
 
+    def to_x0y0(self):
+        ret = self.to_tlwh()
+        ret[:2] = ret[:2] + (ret[2:] / 2)
+        return ret[:2]
+
     def to_tlwh(self):
         """Get current position in bounding box format `(top left x, top left y,
         width, height)`.
