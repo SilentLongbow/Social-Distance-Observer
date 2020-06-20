@@ -24,6 +24,7 @@ class PedestrianDetector:
             raise ValueError("Weights file is not supported: {}\n Use a '.weights' file.".format(weights_path))
         self.detector_model.eval()
         self.classes = load_classes(class_definitions_path)
+        self.detections = None
 
     def perform_pedestrian_detection(self, input_image, confidence_threshold, iou_threshold):
         with torch.no_grad():
@@ -32,7 +33,21 @@ class PedestrianDetector:
 
             # Cull any bounding boxes that don't meet confidence threshold and perform nms on the others
             # Returns list containing a detections tensor. We just want that tensor.
-            return non_max_suppression(detections, confidence_threshold, iou_threshold)[0]
+            self.detections = non_max_suppression(detections, confidence_threshold, iou_threshold)[0]
+
+    def cull_non_pedestrian_detections(self):
+        class_pred_index = 6
+        pedestrian_detections = []
+        for detection in self.detections:
+            class_name_index = detection[class_pred_index]
+            if self.classes[int(class_name_index)] == "person":
+                pedestrian_detections.append(detection)
+        if len(pedestrian_detections) > 0:
+            self.detections = torch.stack(pedestrian_detections)
+        else:
+            self.detections = None
+
+
 
 
 def pad_to_square(img, pad_value):
@@ -97,43 +112,3 @@ def set_output(input_capture):
 def prepare_image_input(frame, options, Tensor):
     image = opencv_image_to_tensor(frame, options.image_size)
     return Variable(image.type(Tensor))
-
-
-def initialise_detector(model_definition, weights_path, image_size, device, class_path):
-    return PedestrianDetector(options.model_definition, options.weights_path,
-                                             options.image_size, device, options.class_path)
-
-
-
-
-if __name__ == '__main__':
-    options = parse_arguments()
-    os.makedirs("video_output", exist_ok=True)
-
-    while capture.isOpened():
-        successfully_retrieved, frame = capture.read()
-
-        if not successfully_retrieved:
-            break
-
-        yolo_input_image = prepare_image_input(frame, options)
-        detections = pedestrian_detector\
-            .perform_pedestrian_detection(yolo_input_image, options.conf_threshold, options.non_max_supp_threshold)
-
-        if detections is not None:
-            detections = rescale_boxes(detections, options.image_size, frame.shape[:2])
-            unique_labels = detections[:, -1].cpu().unique()
-            for x1, y1, x2, y2, object_confidence, class_confidence, class_prediction_index in detections:
-                if int(class_prediction_index) == 0:
-                    cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 0, 0), 2)
-                    text = "{0} - {1:.3f}%".format(pedestrian_detector.classes[int(class_prediction_index)], object_confidence)
-                    cv2.putText(frame, text, (x1, y1), 0, 0.5, (0, 255, 0), 2)
-
-        output.write(frame)
-        cv2.imshow("Detections", frame)
-
-        if cv2.waitKey(1) == ord('q'):
-            break
-
-    capture.release()
-    cv2.destroyAllWindows()
