@@ -1,10 +1,9 @@
 import os
 
-from deep_sort.deep_sort import nn_matching
-from deep_sort.deep_sort.tracker import Tracker 
-from deep_sort.application_util import preprocessing as prep
-from deep_sort.application_util import visualization
-from deep_sort.deep_sort.detection import Detection
+from .deep_sort.deep_sort import nn_matching
+from .deep_sort.deep_sort.tracker import Tracker
+from .deep_sort.application_util import preprocessing as prep, visualization
+from .deep_sort.deep_sort.detection import Detection
 
 import numpy as np
 
@@ -39,11 +38,10 @@ class deepsort_rbc():
 		if wt_path is not None:
 			self.encoder = torch.load(wt_path)			
 		else:
-			self.encoder = torch.load('deep-sort-python/ckpts/model640.pt')
+			self.encoder = torch.load('deep_sort_python/ckpts/model640.pt')
 			
 		self.encoder = self.encoder.cuda()
 		self.encoder = self.encoder.eval()
-		print("Deep sort model loaded")
 
 		self.metric = nn_matching.NearestNeighborDistanceMetric("cosine",.5 , 100)
 		self.tracker= Tracker(self.metric)

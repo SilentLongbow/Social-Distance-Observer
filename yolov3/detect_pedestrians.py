@@ -10,13 +10,13 @@ import torch.nn.functional as F
 import torchvision.transforms as transforms
 from torch.autograd import Variable
 
-from models import *
-from utils.utils import load_classes, non_max_suppression, rescale_boxes
+from .models import *
+from .utils.utils import load_classes, non_max_suppression
 
 
 class PedestrianDetector:
 
-    def __init__(self, model_definition, weights_path, image_size, device, class_definitions_path, ):
+    def __init__(self, model_definition, weights_path, image_size, class_definitions_path, device):
         self.detector_model = Darknet(model_definition, image_size).to(device)
         if weights_path.endswith(".weights"):
             self.detector_model.load_darknet_weights(weights_path)
@@ -35,6 +35,22 @@ class PedestrianDetector:
             # Returns list containing a detections tensor. We just want that tensor.
             self.detections = non_max_suppression(detections, confidence_threshold, iou_threshold)[0]
 
+    def restore_bounding_boxes(self, current_dim, original_shape):
+        """ Rescales bounding boxes to the original shape """
+        orig_h, orig_w = original_shape
+        # The amount of padding that was added
+        pad_x = max(orig_h - orig_w, 0) * (current_dim / max(original_shape))
+        pad_y = max(orig_w - orig_h, 0) * (current_dim / max(original_shape))
+        # Image height and width after padding is removed
+        unpad_h = current_dim - pad_y
+        unpad_w = current_dim - pad_x
+        # Rescale bounding boxes to dimension of original image
+        self.detections[:, 0] = ((self.detections[:, 0] - pad_x // 2) / unpad_w) * orig_w
+        self.detections[:, 1] = ((self.detections[:, 1] - pad_y // 2) / unpad_h) * orig_h
+        self.detections[:, 2] = ((self.detections[:, 2] - pad_x // 2) / unpad_w) * orig_w
+        self.detections[:, 3] = ((self.detections[:, 3] - pad_y // 2) / unpad_h) * orig_h
+        return self.detections
+
     def cull_non_pedestrian_detections(self):
         class_pred_index = 6
         pedestrian_detections = []
@@ -46,8 +62,6 @@ class PedestrianDetector:
             self.detections = torch.stack(pedestrian_detections)
         else:
             self.detections = None
-
-
 
 
 def pad_to_square(img, pad_value):
@@ -77,22 +91,6 @@ def opencv_image_to_tensor(image, image_size):
     return image
 
 
-def parse_arguments():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--input-path", type=str, required=True, help="path to the input image")
-    parser.add_argument("--model-definition", type=str, default="config/yolov3.cfg",
-                        help="path to the pre-trained model")
-    parser.add_argument("--weights-path", type=str, default="weights/yolov3.weights",
-                        help="path to pre-trained weights file")
-    parser.add_argument("--class-path", type=str, default="data/coco.names", help="path to class label file")
-    parser.add_argument("--conf-threshold", type=float, default=0.8, help="object confidence threshold")
-    parser.add_argument("--non-max-supp-threshold", type=float, default=0.4,
-                        help="iou threshold for non-maximum suppression")
-    parser.add_argument("--image-size", type=int, default=416, help="the size of each image dimension")
-    parser.add_argument("--webcam", type=bool, default=False, help="whether the device's webcam should be used")
-    return parser.parse_args()
-
-
 def get_capture(use_webcam, video_input):
     if use_webcam:
         cap = cv2.VideoCapture(0)
@@ -109,6 +107,6 @@ def set_output(input_capture):
     return cv2.VideoWriter(filename, fourcc, frame_rate, resolution)
 
 
-def prepare_image_input(frame, options, Tensor):
-    image = opencv_image_to_tensor(frame, options.image_size)
-    return Variable(image.type(Tensor))
+def convert_image_for_detection(frame, yolo_input_size, tensor_type):
+    image = opencv_image_to_tensor(frame, yolo_input_size)
+    return Variable(image.type(tensor_type))
