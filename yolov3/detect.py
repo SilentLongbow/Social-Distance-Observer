@@ -1,9 +1,9 @@
 from __future__ import division
 
-from utils.datasets import ImageFolder
-from models import *
-from utils.utils import *
-from utils.datasets import *
+from .utils.datasets import ImageFolder
+from .models import *
+from .utils.utils import *
+from .utils.datasets import *
 
 import os
 import sys
@@ -22,7 +22,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.ticker import NullLocator
 
-from utils.utils import load_classes, non_max_suppression, rescale_boxes
+from .utils.utils import load_classes, non_max_suppression, rescale_boxes
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -55,7 +55,6 @@ if __name__ == "__main__":
 
     model.eval()  # Set in evaluation mode
 
-    # TODO Look into data
     dataloader = DataLoader(
         ImageFolder(opt.image_folder, img_size=opt.img_size),
         batch_size=opt.batch_size,
