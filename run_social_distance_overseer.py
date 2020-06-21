@@ -149,13 +149,16 @@ def parse_command_line_args():
                         help="iou threshold for non-maximum suppression")
     parser.add_argument("--image-size", type=int, default=416, help="the size of each image dimension")
     parser.add_argument("--min-distance", type=int, default=50, help="social distance pixel threshold")
-    parser.add_argument("--track-detections", type=bool, default=True,
+    parser.add_argument("--detect-and-track", dest='track_detections', action='store_true',
                         help="perform tracking on top of YOLOv3 detections")
+    parser.add_argument("--detect-only", dest='track_detections', action='store_false',
+                        help="perform only YOLOv3 detection")
+    parser.set_defaults(track_detections=False)
     return parser.parse_args()
 
 
 def get_output(capture):
-    filename = "video_output/detections-{}".format(datetime.now())
+    filename = "video_output/detections-{}.avi".format(datetime.now().time().minute)
     fourcc = cv2.VideoWriter_fourcc(*'X264')
     frame_rate = capture.get(cv2.CAP_PROP_FPS)
     resolution = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH)), int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
