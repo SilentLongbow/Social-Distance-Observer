@@ -21,7 +21,7 @@ class PedestrianObserver:
         self.args = args
         self.capture = capture
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.output = get_output(capture)
+        self.output = get_output(capture) if self.args.save_video else None
 
         self.detector = detector.PedestrianDetector(self.args.model_definition,
                                                     self.args.weights_path,
@@ -63,7 +63,8 @@ class PedestrianObserver:
             else:
                 self.draw_detection_bounding_boxes(frame)
             display_image("Social Distancing", frame)
-            self.output.write(frame)
+            if self.args.save_video:
+                self.output.write(frame)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
         self.process_runtime_statistics()
@@ -130,10 +131,12 @@ class PedestrianObserver:
         duration_text = "Time taken: {}s".format(duration)
         frames_text = "Frames processed: {}".format(self.frames_processed)
         average_rate_text = "Average framerate: {:.2f}fps".format(self.frames_processed / float(duration))
+        at_risk_text = "Number at risk: {}".format(len(self.ids_at_risk))
 
         print(duration_text)
         print(frames_text)
         print(average_rate_text)
+        print(at_risk_text)
 
 
 def parse_command_line_args():
@@ -153,7 +156,10 @@ def parse_command_line_args():
                         help="perform tracking on top of YOLOv3 detections")
     parser.add_argument("--detect-only", dest='track_detections', action='store_false',
                         help="perform only YOLOv3 detection")
-    parser.set_defaults(track_detections=False)
+    parser.add_argument("--save-video", dest='save_video', action='store_true')
+    parser.add_argument("--no-video", dest='save_video', action='store_false')
+    parser.set_defaults(track_detections=True)
+    parser.set_defaults(save_video=True)
     return parser.parse_args()
 
 
